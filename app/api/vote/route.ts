@@ -35,7 +35,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Enregistrer le vote
+    // Récupérer la paire pour connaître les labels et salaires
+    const { data: pair, error: pairError } = await supabase
+      .from("job_offer_pairs")
+      .select(
+        "offer_a_labels, offer_a_salary_min, offer_a_salary_max, offer_b_labels, offer_b_salary_min, offer_b_salary_max"
+      )
+      .eq("id", pairId)
+      .single()
+
+    if (pairError || !pair) {
+      console.error("Error fetching pair for vote:", pairError)
+      return Response.json(
+        { error: "Pair not found for vote" },
+        { status: 404 }
+      )
+    }
+
+    const isOfferA = chosenOffer === "A"
+    const chosenLabels = isOfferA ? pair.offer_a_labels : pair.offer_b_labels
+    const chosenSalaryMin = isOfferA ? pair.offer_a_salary_min : pair.offer_b_salary_min
+    const chosenSalaryMax = isOfferA ? pair.offer_a_salary_max : pair.offer_b_salary_max
+    const rejectedLabels = isOfferA ? pair.offer_b_labels : pair.offer_a_labels
+    const rejectedSalaryMin = isOfferA ? pair.offer_b_salary_min : pair.offer_a_salary_min
+    const rejectedSalaryMax = isOfferA ? pair.offer_b_salary_max : pair.offer_a_salary_max
+
+    // Enregistrer le vote (offre choisie + offre rejetée pour analyses)
     const { data: vote, error: voteError } = await supabase
       .from("votes")
       .insert({
@@ -43,6 +68,12 @@ export async function POST(request: NextRequest) {
         pair_id: pairId,
         chosen_offer: chosenOffer,
         choice_reasoning: reasoning || null,
+        chosen_offer_labels: chosenLabels || {},
+        chosen_offer_salary_min: chosenSalaryMin ?? null,
+        chosen_offer_salary_max: chosenSalaryMax ?? null,
+        rejected_offer_labels: rejectedLabels || {},
+        rejected_offer_salary_min: rejectedSalaryMin ?? null,
+        rejected_offer_salary_max: rejectedSalaryMax ?? null,
         age_range: demographics?.ageRange || null,
         program: demographics?.program || null,
         gender: demographics?.gender || null,
@@ -58,11 +89,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Mettre à jour la session comme complétée
-    await supabase
-      .from("voting_sessions")
-      .update({ completed_at: new Date().toISOString() })
-      .eq("id", sessionId)
+    // Ne pas marquer la session comme complétée pour permettre plusieurs votes
+    // La session reste active pour permettre de continuer à voter
 
     return Response.json({ success: true, vote })
   } catch (error) {

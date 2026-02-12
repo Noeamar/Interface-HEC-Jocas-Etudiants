@@ -109,3 +109,48 @@ export const PAIR_TEMPLATES: PairTemplate[] = [
 export function getRandomTemplate(): PairTemplate {
   return PAIR_TEMPLATES[Math.floor(Math.random() * PAIR_TEMPLATES.length)]
 }
+
+export function getTemplateById(id: string): PairTemplate | undefined {
+  return PAIR_TEMPLATES.find(template => template.id === id)
+}
+
+export function getTemplateNames(): Array<{ id: string; name: string; description: string }> {
+  return [
+    {
+      id: 'diversity_vs_remuneration',
+      name: 'Diversité vs Rémunération',
+      description: 'Consultant Junior - Comparaison entre diversité/inclusion et rémunération/avantages'
+    },
+    {
+      id: 'worklife_vs_opportunities',
+      name: 'Équilibre vs Opportunités',
+      description: 'Analyste Finance - Comparaison entre équilibre vie pro/perso et opportunités de carrière'
+    },
+    {
+      id: 'leadership_vs_culture',
+      name: 'Leadership vs Culture',
+      description: 'Chef de Projet Digital - Comparaison entre leadership/vision et culture d\'entreprise'
+    }
+  ]
+}
+
+// Fonction pour obtenir les titres de jobs disponibles (pour l'utilisateur)
+export function getAvailableJobTitles(): Array<{ title: string; company: string }> {
+  const uniqueJobs = new Map<string, string>()
+  PAIR_TEMPLATES.forEach(template => {
+    if (!uniqueJobs.has(template.jobTitle)) {
+      uniqueJobs.set(template.jobTitle, template.company)
+    }
+  })
+  return Array.from(uniqueJobs.entries()).map(([title, company]) => ({
+    title,
+    company
+  }))
+}
+
+// Fonction pour obtenir un template aléatoire pour un titre de job donné
+export function getRandomTemplateForJobTitle(jobTitle: string): PairTemplate | null {
+  const templatesForJob = PAIR_TEMPLATES.filter(t => t.jobTitle === jobTitle)
+  if (templatesForJob.length === 0) return null
+  return templatesForJob[Math.floor(Math.random() * templatesForJob.length)]
+}

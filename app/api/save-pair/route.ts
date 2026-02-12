@@ -12,20 +12,28 @@ export async function POST(request: NextRequest) {
       company,
     } = body
 
+    // Vérifier que les données sont présentes
+    if (!offerA || !offerB || !offerA.text || !offerB.text) {
+      return Response.json(
+        { error: "Missing required offer data" },
+        { status: 400 }
+      )
+    }
+
     const { data: pair, error } = await supabase
       .from("job_offer_pairs")
       .insert({
         session_id: sessionId,
         offer_a_text: offerA.text,
-        offer_a_labels: offerA.labels,
-        offer_a_salary_min: offerA.salary.min,
-        offer_a_salary_max: offerA.salary.max,
+        offer_a_labels: offerA.labels || {},
+        offer_a_salary_min: offerA.salary?.min || null,
+        offer_a_salary_max: offerA.salary?.max || null,
         offer_b_text: offerB.text,
-        offer_b_labels: offerB.labels,
-        offer_b_salary_min: offerB.salary.min,
-        offer_b_salary_max: offerB.salary.max,
-        job_title: jobTitle,
-        company_name: company,
+        offer_b_labels: offerB.labels || {},
+        offer_b_salary_min: offerB.salary?.min || null,
+        offer_b_salary_max: offerB.salary?.max || null,
+        job_title: jobTitle || null,
+        company_name: company || null,
       })
       .select()
       .single()

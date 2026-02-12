@@ -42,6 +42,14 @@ CREATE TABLE IF NOT EXISTS votes (
   
   chosen_offer CHAR(1) NOT NULL CHECK (chosen_offer IN ('A', 'B')),
   choice_reasoning TEXT, -- Optionnel : pourquoi ce choix ?
+  -- Offre choisie : labels & salaires
+  chosen_offer_labels JSONB,
+  chosen_offer_salary_min INTEGER,
+  chosen_offer_salary_max INTEGER,
+  -- Offre rejetée : labels & salaires (pour analyses WTP, etc.)
+  rejected_offer_labels JSONB,
+  rejected_offer_salary_min INTEGER,
+  rejected_offer_salary_max INTEGER,
   
   -- Données démographiques optionnelles
   age_range VARCHAR(20),
