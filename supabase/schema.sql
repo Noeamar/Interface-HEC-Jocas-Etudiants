@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS voting_sessions (
   user_agent TEXT
 );
 
--- Table : Paires d'offres générées
 CREATE TABLE IF NOT EXISTS job_offer_pairs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   session_id UUID REFERENCES voting_sessions(id) ON DELETE CASCADE,
@@ -27,6 +26,12 @@ CREATE TABLE IF NOT EXISTS job_offer_pairs (
   offer_b_labels JSONB NOT NULL,
   offer_b_salary_min INTEGER,
   offer_b_salary_max INTEGER,
+
+  -- Offre C (nouvelle pour comparaison à 3 offres)
+  offer_c_text TEXT,
+  offer_c_labels JSONB,
+  offer_c_salary_min INTEGER,
+  offer_c_salary_max INTEGER,
   
   -- Métadonnées
   job_title VARCHAR(255),
@@ -40,7 +45,8 @@ CREATE TABLE IF NOT EXISTS votes (
   session_id UUID REFERENCES voting_sessions(id) ON DELETE CASCADE,
   pair_id UUID REFERENCES job_offer_pairs(id) ON DELETE CASCADE,
   
-  chosen_offer CHAR(1) NOT NULL CHECK (chosen_offer IN ('A', 'B')),
+  chosen_offer CHAR(1) NOT NULL CHECK (chosen_offer IN ('A', 'B', 'C')),
+  baseline_offer CHAR(1) CHECK (baseline_offer IN ('A', 'B', 'C')),
   choice_reasoning TEXT, -- Optionnel : pourquoi ce choix ?
   -- Offre choisie : labels & salaires
   chosen_offer_labels JSONB,
@@ -50,6 +56,14 @@ CREATE TABLE IF NOT EXISTS votes (
   rejected_offer_labels JSONB,
   rejected_offer_salary_min INTEGER,
   rejected_offer_salary_max INTEGER,
+
+  -- WTP / intensité par offre (delta de salaire vs baseline, en euros)
+  wtp_delta_a INTEGER,
+  wtp_delta_b INTEGER,
+  wtp_delta_c INTEGER,
+  preference_score_a INTEGER,
+  preference_score_b INTEGER,
+  preference_score_c INTEGER,
   
   -- Données démographiques optionnelles
   age_range VARCHAR(20),

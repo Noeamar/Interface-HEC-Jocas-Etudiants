@@ -18,6 +18,18 @@ export interface JobOfferPair {
   offer_b_labels: LabelSet
   offer_b_salary_min: number | null
   offer_b_salary_max: number | null
+  offer_c_text?: string | null
+  offer_c_labels?: LabelSet | null
+  offer_c_salary_min?: number | null
+  offer_c_salary_max?: number | null
+  offer_d_text?: string | null
+  offer_d_labels?: LabelSet | null
+  offer_d_salary_min?: number | null
+  offer_d_salary_max?: number | null
+  offer_e_text?: string | null
+  offer_e_labels?: LabelSet | null
+  offer_e_salary_min?: number | null
+  offer_e_salary_max?: number | null
   job_title: string | null
   company_name: string | null
   created_at: string
@@ -27,7 +39,7 @@ export interface Vote {
   id: string
   session_id: string
   pair_id: string
-  chosen_offer: 'A' | 'B'
+  chosen_offer: 'A' | 'B' | 'C' | 'D' | 'E'
   choice_reasoning: string | null
   age_range: string | null
   program: string | null

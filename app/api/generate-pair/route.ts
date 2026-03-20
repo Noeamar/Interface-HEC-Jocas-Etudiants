@@ -99,21 +99,28 @@ function roundToHundred(n: number): number {
   return Math.round(n / 100) * 100
 }
 
-// Deux fourchettes resserrées (écart aléatoire 3–12k), arrondies à la centaine d'euros
-function getTwoSalaryRanges(sectorRange: { min: number; max: number }): [ { min: number; max: number }, { min: number; max: number } ] {
+// Génère N fourchettes salariales resserrées dans la plage secteur
+function getSalaryRanges(sectorRange: { min: number; max: number }, count: number): Array<{ min: number; max: number }> {
   const { min: smin, max: smax } = sectorRange
-  const span = smax - smin
+  const span = Math.max(8000, smax - smin)
   const bandWidth = Math.max(4000, Math.min(6000, Math.round(span * 0.15)))
-  const gap = Math.round(3000 + Math.random() * 9000)
-  const low = smin + Math.round(Math.random() * Math.max(0, span * 0.5))
-  const aMin = roundToHundred(low)
-  const aMax = roundToHundred(Math.min(smax, low + bandWidth))
-  const bMin = roundToHundred(Math.max(aMax + 2000, Math.min(smax - bandWidth, aMax + gap)))
-  const bMax = roundToHundred(Math.min(smax, bMin + bandWidth))
-  return [
-    { min: aMin, max: roundToHundred(Math.max(aMin + 2000, aMax)) },
-    { min: bMin, max: roundToHundred(Math.max(bMin + 2000, bMax)) },
-  ]
+
+  const ranges: Array<{ min: number; max: number }> = []
+  const step = span / (count + 1)
+
+  for (let i = 0; i < count; i++) {
+    const center = smin + step * (i + 1)
+    const rawMin = center - bandWidth / 2
+    const rawMax = center + bandWidth / 2
+    const rMin = roundToHundred(Math.max(smin, Math.min(rawMin, smax - bandWidth)))
+    const rMax = roundToHundred(Math.min(smax, rMin + bandWidth))
+    ranges.push({
+      min: rMin,
+      max: roundToHundred(Math.max(rMin + 2000, rMax)),
+    })
+  }
+
+  return ranges
 }
 
 async function generateOffer(params: {
@@ -184,7 +191,7 @@ async function verifyLabels(offerText: string, requiredLabels: LabelSet): Promis
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
-    const { templateId, jobTitle, company } = body
+    const { templateId, jobTitle, company, offerCount } = body
     
     // Logique de sélection du template :
     // 1. Si templateId est fourni (admin), utiliser ce template
@@ -211,9 +218,10 @@ export async function POST(request: Request) {
       finalCompany = template.company
     }
 
-    // Fourchettes salariales par secteur (d'après le titre du poste) et deux offres bien séparées
+    // Fourchettes salariales par secteur (d'après le titre du poste) et offres bien séparées
     const sectorRange = getSalaryRangeForJobTitle(finalJobTitle)
-    const [salaryA, salaryB] = getTwoSalaryRanges(sectorRange)
+    const count = Math.min(5, Math.max(2, typeof offerCount === "number" ? Math.round(offerCount) : 3))
+    const salaryRanges = getSalaryRanges(sectorRange, count)
 
     // Fonction helper pour générer une offre avec retry (accepte l'offre après 3 tentatives si non vide)
     async function generateOfferWithRetry(
@@ -252,40 +260,50 @@ export async function POST(request: Request) {
       throw new Error(`Failed to generate offer after ${maxAttempts} attempts`)
     }
 
-    // Générer les deux offres en parallèle (chacune connaît le contexte de l'autre pour se différencier)
-    const [offerA, offerB] = await Promise.all([
-      generateOfferWithRetry({
-        jobTitle: finalJobTitle,
-        company: finalCompany,
-        labels: template.offerA.labels,
-        salary: salaryA,
-        focus: template.offerA.focus,
-        otherOffer: { salary: salaryB, focus: template.offerB.focus },
-      }),
-      generateOfferWithRetry({
-        jobTitle: finalJobTitle,
-        company: finalCompany,
-        labels: template.offerB.labels,
-        salary: salaryB,
-        focus: template.offerB.focus,
-        otherOffer: { salary: salaryA, focus: template.offerA.focus },
-      }),
-    ])
+    // Générer N offres en parallèle
+    const offerIds = ["A", "B", "C", "D", "E"].slice(0, count) as Array<"A" | "B" | "C" | "D" | "E">
+
+    const offersTexts = await Promise.all(
+      offerIds.map((id, index) => {
+        const isEven = index % 2 === 0
+        const base = isEven ? template.offerA : template.offerB
+        const salary = salaryRanges[index]
+        const focus =
+          index <= 1
+            ? base.focus
+            : `${base.focus} (variante ${index + 1} : reformule en gardant le même esprit, pour créer une offre distincte mais cohérente).`
+
+        const otherIndex = (index + 1) % count
+        const otherSalary = salaryRanges[otherIndex]
+        const otherBase = (otherIndex % 2 === 0 ? template.offerA : template.offerB)
+
+        return generateOfferWithRetry({
+          jobTitle: finalJobTitle,
+          company: finalCompany,
+          labels: base.labels,
+          salary,
+          focus,
+          otherOffer: { salary: otherSalary, focus: otherBase.focus },
+        })
+      })
+    )
+
+    const offers = offerIds.map((id, index) => {
+      const isEven = index % 2 === 0
+      const base = isEven ? template.offerA : template.offerB
+      return {
+        id,
+        text: offersTexts[index],
+        labels: base.labels,
+        salary: salaryRanges[index],
+      }
+    })
 
     return Response.json({
-      offerA: {
-        text: offerA,
-        labels: template.offerA.labels,
-        salary: salaryA,
-      },
-      offerB: {
-        text: offerB,
-        labels: template.offerB.labels,
-        salary: salaryB,
-      },
-      jobTitle: finalJobTitle, // Utiliser le jobTitle final (celui de l'utilisateur si fourni)
+      offers,
+      jobTitle: finalJobTitle,
       company: finalCompany,
-      templateId: template.id, // Garder le templateId pour l'analyse
+      templateId: template.id,
     })
   } catch (error) {
     console.error("Error generating pair:", error)
